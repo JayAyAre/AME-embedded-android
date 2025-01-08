@@ -3,13 +3,10 @@
 #include "ThermistorLib.h"
 #include <cmath>
 
-
-// Constructor of the Thermistor class
 Thermistor::Thermistor(PinName pin, float Rb, float beta, float T0, float K)
     : therm(pin), Rb(Rb), beta(beta), T0(T0), K(K) {}
 
 
-// Function to read the temperature in Celsius
 float Thermistor::readTemperatureC() {
     float lecture = therm.read();
     float rtherm = Rb * ((1 / lecture) - 1);

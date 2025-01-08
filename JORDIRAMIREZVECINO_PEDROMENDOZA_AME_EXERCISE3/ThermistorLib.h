@@ -5,13 +5,11 @@
 
 class Thermistor {
 public:
-    // Constructor
+
     Thermistor(PinName pin, float Rb, float beta, float T0, float K);
 
-    // Function to read the temperature in degrees Celsius
     float readTemperatureC();
 
-    // Function to read the voltage
     float readVoltage();
 
 private:

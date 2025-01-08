@@ -20,28 +20,25 @@ import java.util.*
 class BluetoothActivity : AppCompatActivity() {
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private var connectedSocket: BluetoothSocket? = null
-    private val MODULE_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB") // UUID estándar SPP
-    private val moduleName = "JordiRPedroM" // Nombre del módulo configurado en la placa
-
+    private val MODULE_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    private val moduleName = "JordiRPedroM"
     private val PERMISSION_REQUEST_CODE = 1
     private lateinit var connectionStatusTextView: TextView
+    private lateinit var bluetoothTemperatureTextView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_bluetooth)
 
-        // Inicializar el TextView para mostrar el estado de la conexión
         connectionStatusTextView = findViewById(R.id.connectionStatus)
+        bluetoothTemperatureTextView = findViewById(R.id.bluetoothTemperature)
 
-        // Botón para conectar al módulo
         val btnConnect: Button = findViewById(R.id.btnConnectBluetooth)
         btnConnect.setOnClickListener {
-            // Verificar permisos y conectar
             checkAndRequestPermissions()
             connectToBluetoothModule()
         }
 
-        // Inicializar BluetoothAdapter
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         if (bluetoothAdapter == null) {
             Toast.makeText(this, "Bluetooth not supported on this device", Toast.LENGTH_SHORT).show()
@@ -49,7 +46,6 @@ class BluetoothActivity : AppCompatActivity() {
             return
         }
 
-        // Si el Bluetooth está apagado, solicitar al usuario que lo encienda
         if (!bluetoothAdapter.isEnabled) {
             val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             if (ActivityCompat.checkSelfPermission(
@@ -57,13 +53,6 @@ class BluetoothActivity : AppCompatActivity() {
                     Manifest.permission.BLUETOOTH_CONNECT
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
                 return
             }
             startActivityForResult(enableBtIntent, 1)
@@ -88,51 +77,42 @@ class BluetoothActivity : AppCompatActivity() {
     }
 
     private fun connectToBluetoothModule() {
-        // Verificar permisos
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "Bluetooth connect permission not granted", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Obtener dispositivos emparejados
         val pairedDevices = bluetoothAdapter.bondedDevices
         if (pairedDevices.isEmpty()) {
             Toast.makeText(this, "No paired devices found", Toast.LENGTH_SHORT).show()
-            updateConnectionStatus("Desconectado", "#FF0000")
-            saveConnectionStatus(false) // Guardar que NO estamos conectados
+            updateConnectionStatus("Disconnected", "#FF0000")
+            saveConnectionStatus(false)
             return
         }
 
-        // Buscar el módulo emparejado por nombre
         val module: BluetoothDevice? = pairedDevices.find { it.name == moduleName }
         if (module == null) {
             Toast.makeText(this, "Module '$moduleName' not found. Pair it first.", Toast.LENGTH_SHORT).show()
-            updateConnectionStatus("Desconectado", "#FF0000")
-            saveConnectionStatus(false) // Guardar que NO estamos conectados
+            updateConnectionStatus("Disconnected", "#FF0000")
+            saveConnectionStatus(false)
             return
         }
 
-        // Intentar conectar al módulo
         try {
             connectedSocket = module.createRfcommSocketToServiceRecord(MODULE_UUID)
             connectedSocket?.connect()
             Toast.makeText(this, "Connected to $moduleName", Toast.LENGTH_SHORT).show()
-            updateConnectionStatus("Conectado a $moduleName", "#008000")
-
-            // Guardar el estado de conexión en SharedPreferences como exitoso
+            updateConnectionStatus("Connected to $moduleName", "#008000")
             saveConnectionStatus(true)
-
-            // Leer datos del módulo si es necesario
             connectedSocket?.inputStream?.let { readDataFromModule(it) }
         } catch (e: IOException) {
             Toast.makeText(this, "Connection failed: ${e.message}", Toast.LENGTH_SHORT).show()
             connectedSocket?.close()
-            updateConnectionStatus("Desconectado", "#FF0000")
-            saveConnectionStatus(false) // Guardar que NO estamos conectados
+            updateConnectionStatus("Disconnected", "#FF0000")
+            saveConnectionStatus(false)
         }
     }
 
-    // Método para guardar el estado de la conexión en SharedPreferences
     private fun saveConnectionStatus(isConnected: Boolean) {
         val sharedPreferences = getSharedPreferences("BluetoothPrefs", MODE_PRIVATE)
         val editor = sharedPreferences.edit()
@@ -140,11 +120,9 @@ class BluetoothActivity : AppCompatActivity() {
         editor.apply()
     }
 
-
-
     private fun updateConnectionStatus(status: String, color: String) {
         runOnUiThread {
-            connectionStatusTextView.text = "Estado de conexión: $status"
+            connectionStatusTextView.text = "Connection Status: $status"
             connectionStatusTextView.setTextColor(android.graphics.Color.parseColor(color))
         }
     }
@@ -153,15 +131,15 @@ class BluetoothActivity : AppCompatActivity() {
         val buffer = ByteArray(1024)
         var bytes: Int
 
-        // Hilo para leer datos continuamente
         Thread {
             while (true) {
                 try {
                     bytes = inputStream.read(buffer)
                     val receivedData = String(buffer, 0, bytes)
-
-                    runOnUiThread {
-                        Toast.makeText(this, "Data: $receivedData", Toast.LENGTH_SHORT).show()
+                    val temperature = parseTemperature(receivedData)
+                    if (temperature != null) {
+                        saveTemperature(temperature)
+                        updateTemperatureUI(temperature)
                     }
                 } catch (e: IOException) {
                     runOnUiThread {
@@ -171,5 +149,26 @@ class BluetoothActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun parseTemperature(data: String): Float? {
+        return try {
+            data.substringAfter("Temp: ").substringBefore("C").toFloat()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun saveTemperature(temperature: Float) {
+        val sharedPreferences = getSharedPreferences("BluetoothPrefs", MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+        editor.putFloat("temperature", temperature)
+        editor.apply()
+    }
+
+    private fun updateTemperatureUI(temperature: Float) {
+        runOnUiThread {
+            bluetoothTemperatureTextView.text = "Bluetooth Temperature: ${"%.2f".format(temperature)}°C"
+        }
     }
 }

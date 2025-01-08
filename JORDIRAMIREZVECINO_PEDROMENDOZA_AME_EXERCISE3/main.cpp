@@ -2,21 +2,18 @@
 #include "ThermistorLib.h"
 #include "BufferedSerial.h"
 #include "ThisThread.h"
+#include <cstdio>
 
-int main() {
-    // Thermistor constants
-    const float Rb = 100000.0; // 100 kΩ
-    const float T0 = 298.15;   // Reference temperature in Kelvin
-    const float K = 273.15;    // Conversion constant from Kelvin to Celsius
-    const float beta = 4250.0; // Beta value of the thermistor
+const float Rb = 100000.0; // 100 kΩ
+const float T0 = 298.15;   // Reference temperature in Kelvin
+const float K = 273.15;    // Conversion constant from Kelvin to Celsius
+const float beta = 4250.0; // Beta value of the thermistor
 
-    // Create an instance of the thermistor
-    Thermistor thermistor(A0, Rb, beta, T0, K); // Analog pin A0 for the thermistor
+Thermistor thermistor(A0, Rb, beta, T0, K);
+BufferedSerial blueToothSerial(D1, D0, 9600);
 
-    // Bluetooth module configuration
-    BufferedSerial blueToothSerial(D1, D0, 9600); // Bluetooth on pins D1 (TX) and D0 (RX)
 
-    // Initial Bluetooth module configuration with AT commands
+int main() {    
     blueToothSerial.write("AT", sizeof("AT"));
     ThisThread::sleep_for(400ms);
 
@@ -43,16 +40,16 @@ int main() {
 
     // Main loop
     while (true) {
-        char buff[20]; // Buffer to store the data to send
-        float temperature = thermistor.readTemperatureC(); // Temperature reading
+        char buff[20];
+        float temperature = thermistor.readTemperatureC();
 
-        // Format the temperature data
         snprintf(buff, sizeof(buff), "Temp: %.2fC", temperature);
 
-        // Send the data via Bluetooth
+        printf("Buffer content: %s\n", buff);
+        printf("Temperature content: %.4f\n\n", temperature);
+
         blueToothSerial.write(buff, sizeof(buff));
 
-        // Pause before the next iteration
         ThisThread::sleep_for(1500ms);
     }
 }
