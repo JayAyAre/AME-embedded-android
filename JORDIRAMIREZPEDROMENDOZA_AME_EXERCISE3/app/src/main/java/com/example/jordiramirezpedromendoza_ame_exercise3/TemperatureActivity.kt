@@ -23,7 +23,7 @@ class TemperatureActivity : AppCompatActivity() {
     private lateinit var searchButton: Button
     private lateinit var citySearchEditText: EditText
 
-    private val openWeatherApiKey = "11f73830671436f70048dc5319785a7a" // Tu API Key de OpenWeatherMap
+    private val openWeatherApiKey = "11f73830671436f70048dc5319785a7a"
 
     @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,7 +43,7 @@ class TemperatureActivity : AppCompatActivity() {
             val cityName = citySearchEditText.text.toString()
             if (cityName.isNotEmpty()) {
                 fetchWeatherForCity(cityName)
-                fetchWeatherForecast(cityName)  // Llamada para el pronóstico de 5 días
+                fetchWeatherForecast(cityName)
             } else {
                 Toast.makeText(this, "Enter a city name", Toast.LENGTH_SHORT).show()
             }
@@ -75,6 +75,13 @@ class TemperatureActivity : AppCompatActivity() {
 
             @SuppressLint("SetTextI18n")
             override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    runOnUiThread {
+                        Toast.makeText(this@TemperatureActivity, "Invalid city name", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
                 response.body?.let { responseBody ->
                     val json = JSONObject(responseBody.string())
                     val city = json.getString("name")
@@ -90,7 +97,6 @@ class TemperatureActivity : AppCompatActivity() {
         })
     }
 
-    // Función para obtener el pronóstico de 5 días, pero solo un pronóstico por cada día
     private fun fetchWeatherForecast(cityName: String) {
         val url = "https://api.openweathermap.org/data/2.5/forecast?q=$cityName&appid=$openWeatherApiKey&units=metric"
         val client = OkHttpClient()
@@ -105,6 +111,13 @@ class TemperatureActivity : AppCompatActivity() {
 
             @SuppressLint("SetTextI18n")
             override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    runOnUiThread {
+                        Toast.makeText(this@TemperatureActivity, "Invalid city name", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
                 response.body?.let { responseBody ->
                     val json = JSONObject(responseBody.string())
                     val list = json.getJSONArray("list")
@@ -113,7 +126,6 @@ class TemperatureActivity : AppCompatActivity() {
                     val dateFormatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
                     val seenDates = mutableSetOf<String>()
 
-                    // Procesar los datos del pronóstico, pero solo agregar 1 de cada día
                     for (i in 0 until list.length()) {
                         val item = list.getJSONObject(i)
                         val timestamp = item.getLong("dt") * 1000
@@ -121,7 +133,6 @@ class TemperatureActivity : AppCompatActivity() {
 
                         val formattedDate = dateFormatter.format(date)
 
-                        // Solo agregar un pronóstico por cada día
                         if (!seenDates.contains(formattedDate)) {
                             seenDates.add(formattedDate)
 
@@ -130,6 +141,8 @@ class TemperatureActivity : AppCompatActivity() {
 
                             forecastText.append("$formattedDate: $temp°C, $weather\n")
                         }
+
+                        if (seenDates.size == 5) break
                     }
 
                     runOnUiThread {
